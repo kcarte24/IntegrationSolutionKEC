@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<div style="position: relative; margin-bottom: 20px;">
+    <button class="menu-button" onclick="toggleMenu()">☰</button>
+    <div id="menu" class="menu-dropdown">
+        <a href="/">Dashboard</a>
+        <a href="/create">Create Message</a>
+    </div>
+</div>
+<div style="width: 95%; margin: auto;">
+    {% block content %}{% endblock %}
+</div>
+<script>
+    function toggleMenu() {
+     const menu = document.getElementById("menu");
+     menu.style.display = menu.style.display === "block" ? "none" : "block";
+ }
+</script>
+</body>
+</html>

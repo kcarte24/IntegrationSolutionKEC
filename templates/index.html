@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<h1>Health Integration Dashboard</h1>
+
+<button onclick="handleRefresh()">Refresh</button>
+<div class="dashboard-container">
+    <div class="table-container">
+        <div id="action-feedback" style="margin-bottom: 10px; font-weight: bold;"></div>
+    <table>
+        <thead>
+        <tr>
+            <th>
+                <span class="header-label">ID</span><br>
+                <input onkeyup="filterTable(event,0)">
+            </th>
+            <th>
+                <span class="header-label">Source</span><br>
+                <select onchange="filterTable(event,1)">
+                    <option value="">All</option>
+                    <option value="Epic">Epic</option>
+                    <option value="MOSAIQ">MOSAIQ</option>
+                </select>
+            </th>
+
+            <th>
+                <span class="header-label">Status</span><br>
+                <select onchange="filterTable(event,2)">
+                    <option value="">All</option>
+                    <option value="PROCESSING">PROCESSING</option>
+                    <option value="SUCCESS">SUCCESS</option>
+                    <option value="FAILED">FAILED</option>
+                </select>
+            </th>
+
+            <th>
+                <span class="header-label">Raw Data</span><br>
+                <input onkeyup="filterTable(event,3)">
+            </th>
+
+            <th>
+                <span class="header-label">Transformed Data</span><br>
+                <input onkeyup="filterTable(event,4)">
+            </th>
+
+            <th>
+                <span class="header-label">Failure Reason</span><br>
+                <input onkeyup="filterTable(event,5)">
+            </th>
+
+            <th>
+                <span class="header-label">Last Updated</span><br>
+                <input onkeyup="filterTable(event,6)">
+            </th>
+
+            <th>Details</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for msg in messages %}
+        <tr data-id="{{ msg.id }}">
+            <td>{{ msg.id }}</td>
+            <td>{{ msg.source_system }}</td>
+            <td>
+                {% if msg.status == 'SUCCESS' %}
+                <span style="color: green;">{{ msg.status }}</span>
+                {% elif msg.status == 'FAILED' %}
+                <span style="color: red;">{{ msg.status }}</span>
+                {% elif msg.status == 'PROCESSING' %}
+                <span style="color: orange;">{{ msg.status }}</span>
+                {% else %}
+                {{ msg.status }}
+                {% endif %}
+            </td>
+            <td>
+                <div class="data-block">
+                    <strong>{{ msg.source_system }} Data</strong><br>
+
+                    {% if msg.raw.patient_id %}
+                    <strong>Patient ID:</strong> {{ msg.raw.patient_id }}<br>
+                    <strong>Name:</strong> {{ msg.raw.patient_name }}<br>
+                    <strong>Diagnosis:</strong> {{ msg.raw.diagnosis }}<br>
+                    <strong>Treatment:</strong> {{ msg.raw.treatment_plan }}
+                    {% else %}
+                    <strong>Patient ID:</strong> {{ msg.raw.patientId }}<br>
+                    <strong>Name:</strong> {{ msg.raw.patientName }}<br>
+                    <strong>Diagnosis:</strong> {{ msg.raw.diagnosisCode }}<br>
+                    <strong>Plan:</strong> {{ msg.raw.radiationPlanCode }}
+                    {% endif %}
+                </div>
+            </td>
+
+            <td>
+                {% if msg.transformed %}
+                <div class="data-block">
+                    {% if msg.target_system.startswith("MOSAIQ") %}
+                        <strong style="color: purple;">MOSAIQ Encoded Data</strong><br>
+                        <strong>Patient ID:</strong> {{ msg.transformed.patientId }}<br>
+                        <strong>Name:</strong> {{ msg.transformed.patientName }}<br>
+                        <strong>Diagnosis Code:</strong> {{ msg.transformed.diagnosisCode }}<br>
+                        <strong>Plan Code:</strong> {{ msg.transformed.radiationPlanCode }}
+                    {% else %}
+                        <strong style="color: blue;">Epic Clinical Data</strong><br>
+                        <strong>Patient ID:</strong> {{ msg.transformed.patient_id }}<br>
+                        <strong>Name:</strong> {{ msg.transformed.patient_name }}<br>
+                        <strong>Diagnosis:</strong> {{ msg.transformed.diagnosis }}<br>
+                        <strong>Treatment:</strong> {{ msg.transformed.treatment_plan }}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </td>
+            <td>
+                {% if msg.status == 'FAILED' %}
+                {{ msg.failure_reason }}
+                {% else %}
+                -
+                {% endif %}
+            </td>
+            <td>{{ msg.updated_at }}</td>
+            <td>
+                <button onclick="openMessage({{ msg.id }})">View Details</button>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+</table>
+</div>
+</div>
+<script>
+    function renderRow(msg) {
+        let statusDisplay = msg.status;
+
+        if (msg.status === "SUCCESS") {
+            statusDisplay = `<span style="color: green;">SUCCESS</span>`;
+        } else if (msg.status === "FAILED") {
+            statusDisplay = `<span style="color: red;">FAILED</span>`;
+        } else if (msg.status === "PROCESSING") {
+            statusDisplay = `<span style="color: orange;">PROCESSING</span>`;
+        }
+
+        const raw = msg.raw_data ? JSON.parse(msg.raw_data) : {};
+        const transformed = msg.transformed_data ? JSON.parse(msg.transformed_data) : null;
+
+        const rawDisplay = raw.patient_id
+            ? `<strong>${msg.source_system} Data</strong><br>
+               <strong>Patient ID:</strong> ${raw.patient_id}<br>
+               <strong>Name:</strong> ${raw.patient_name}<br>
+               <strong>Diagnosis:</strong> ${raw.diagnosis}<br>
+               <strong>Treatment:</strong> ${raw.treatment_plan}`
+            : `<strong>${msg.source_system} Data</strong><br>
+               <strong>Patient ID:</strong> ${raw.patientId}<br>
+               <strong>Name:</strong> ${raw.patientName}<br>
+               <strong>Diagnosis Code:</strong> ${raw.diagnosisCode}<br>
+               <strong>Plan Code:</strong> ${raw.radiationPlanCode}`;
+
+        let transformedDisplay = "-";
+
+        if (transformed) {
+            if (msg.target_system.includes("MOSAIQ")) {
+                transformedDisplay = `
+                    <strong style="color: purple;">MOSAIQ Encoded Data</strong><br>
+                    <strong>Patient ID:</strong> ${transformed.patientId}<br>
+                    <strong>Name:</strong> ${transformed.patientName}<br>
+                    <strong>Diagnosis Code:</strong> ${transformed.diagnosisCode}<br>
+                    <strong>Plan Code:</strong> ${transformed.radiationPlanCode}
+                `;
+            } else {
+                transformedDisplay = `
+                    <strong style="color: blue;">Epic Clinical Data</strong><br>
+                    <strong>Patient ID:</strong> ${transformed.patient_id}<br>
+                    <strong>Name:</strong> ${transformed.patient_name}<br>
+                    <strong>Diagnosis:</strong> ${transformed.diagnosis}<br>
+                    <strong>Treatment:</strong> ${transformed.treatment_plan}
+                `;
+            }
+        }
+
+         return `
+            <td>${msg.id}</td>
+            <td>${msg.source_system}</td>
+            <td>${statusDisplay}</td>
+            <td>
+              <div class="data-block">
+                ${rawDisplay}
+              </div>
+            </td>
+            <td>
+              <div class="data-block">
+                ${transformedDisplay}
+              </div>
+            </td>
+            <td>${msg.status === "FAILED" ? msg.failure_reason : "-"}</td>
+            <td>${msg.updated_at}</td>
+            <td><button onclick="openMessage(${msg.id})">View Details</button></td>
+        `;
+    }
+
+    async function refreshTable() {
+        const tbody = document.querySelector("tbody");
+        const res = await fetch('/api/messages');
+        const data = await res.json();
+
+       tbody.innerHTML = "";
+
+    // rebuild all rows
+    data.forEach(msg => {
+        const row = document.createElement("tr");
+        row.setAttribute("data-id", msg.id);
+        row.innerHTML = renderRow(msg);
+        tbody.appendChild(row);
+    });
+
+    applyAllFilters();
+}
+
+async function handleRefresh() {
+    const feedback = document.getElementById("action-feedback");
+
+    feedback.innerText = "Refreshing...";
+    await refreshTable();
+    feedback.innerText = "Updated";
+
+    setTimeout(() => {
+        feedback.innerText = "";
+    }, 1500);
+}
+
+    function openMessage(id) {
+        window.location.href = `/message/${id}`;
+    }
+
+    let filterTimeout;
+    let isFiltering = false;
+
+    function filterTable(e, colIndex){
+        isFiltering = true;
+
+        clearTimeout(filterTimeout);
+
+        filterTimeout = setTimeout(() => {
+            const input = e.target.value.toLowerCase();
+            localStorage.setItem(`filter_${colIndex}`, input);
+            applyAllFilters();
+
+            isFiltering = false;
+        }, 300);
+    }
+
+    function applyAllFilters() {
+        const rows = document.querySelectorAll("tbody tr");
+        const inputs = document.querySelectorAll("th input, th select");
+
+        rows.forEach(row => {
+            let visible = true;
+
+            inputs.forEach((input, index) => {
+                const filterValue = input.value.toLowerCase();
+                if (!filterValue) return;
+
+                const cell = row.children[index];
+                if (!cell) return;
+
+                const text = cell.textContent.toLowerCase();
+
+                if (!text.includes(filterValue)) {
+                    visible = false;
+                }
+            });
+
+            row.style.display = visible ? "" : "none";
+        });
+    }
+
+    window.addEventListener("load", () => {
+    const inputs = document.querySelectorAll("th input, th select");
+
+    inputs.forEach((input, index) => {
+        const saved = localStorage.getItem(`filter_${index}`);
+        if (saved) {
+            input.value = saved;
+        }
+    });
+
+    applyAllFilters();
+
+    setInterval(() => {
+        if (!isFiltering && document.visibilityState === "visible") {
+            refreshTable();
+        }
+    }, 5000);
+});
+
+</script>
+
+{% endblock %}

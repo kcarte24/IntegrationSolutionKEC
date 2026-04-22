@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Create Message{% endblock %}
+{% block content %}
+
+<div class="create-layout">
+
+    <!-- LEFT SIDEBAR -->
+    <div class="create-sidebar">
+        <div class="info-section">
+        <h4>Integration Workflow</h4>
+        <ul>
+            <li><strong>Ingestion:</strong> Message stored</li>
+            <li><strong>Processing:</strong> Data transformed</li>
+            <li><strong>Routing:</strong> Sent to target system</li>
+        </ul>
+        </div>
+
+        <div class="info-divider"></div>
+        <div class="info-section">
+            <h4>Expected Outcome</h4>
+            <p>
+                1) Message will appear under <strong>Raw Data</strong><br>
+                2) Transition through <strong>PROCESSING</strong><br>
+                3) Resolve as <strong>SUCCESS</strong> or <strong>FAILED</strong>.
+            </p>
+        </div>
+    </div>
+
+    <!-- MAIN FORM -->
+    <div class="create-main">
+        <form id="messageForm" class="card">
+
+            <div class="payload-container">
+
+                <div class="payload-box">
+                    <h4>System Configuration</h4>
+
+                    <label>Source System</label>
+                    <select name="source_system" required>
+                        <option value="">Select Source</option>
+                        <option value="Epic">Epic</option>
+                        <option value="MOSAIQ">MOSAIQ</option>
+                    </select>
+
+                    <label>Target System</label>
+                    <select name="target_system" required>
+                        <option value="">Select Target</option>
+                        <option value="Epic">Epic</option>
+                        <option value="MOSAIQ">MOSAIQ</option>
+                    </select>
+                </div>
+
+                <div class="payload-box">
+                    <h4>Raw Message</h4>
+
+                    <label>Patient ID</label>
+                    <input name="patient_id" pattern="P[0-9]{4}" placeholder="P1234" required>
+
+                    <label>Patient Name</label>
+                    <input name="patient_name" placeholder="Patient Name" required>
+
+                    <label>Diagnosis</label>
+                    <select name="diagnosis" required>
+                        <option value="">Select Diagnosis</option>
+                        <option value="Lung Cancer">Lung Cancer</option>
+                        <option value="Breast Cancer">Breast Cancer</option>
+                        <option value="Prostate Cancer">Prostate Cancer</option>
+                        <option value="Lymphoma">Lymphoma</option>
+                    </select>
+
+                    <label>Treatment Plan</label>
+                    <select name="treatment_plan" required>
+                        <option value="">Select Treatment</option>
+                        <option value="Radiation Therapy">Radiation Therapy</option>
+                        <option value="Chemotherapy">Chemotherapy</option>
+                        <option value="Immunotherapy">Immunotherapy</option>
+                        <option value="Surgery">Surgery</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <div id="form-success"></div>
+            <div id="form-error"></div>
+            <div class="form-actions">
+                <button type="submit">Add Message</button>
+                <a href="/" class="back-link">View Dashboard</a>
+            </div>
+
+
+        </form>
+    </div>
+
+    <!-- PREVIEW PANEL -->
+    <div class="preview-panel">
+        <h4>Live Message Preview</h4>
+        <pre id="json-preview">{}</pre>
+    </div>
+</div>
+
+<script>
+    document.getElementById('messageForm').addEventListener('submit', async function(e) {
+
+    if (!this.checkValidity()) return;
+
+    e.preventDefault();
+
+    const formData = new FormData(this);
+
+    const data = {
+        source_system: formData.get('source_system'),
+        target_system: formData.get('target_system'),
+        patient_id: formData.get('patient_id'),
+        patient_name: formData.get('patient_name'),
+        diagnosis: formData.get('diagnosis'),
+        treatment_plan: formData.get('treatment_plan')
+    };
+
+    const res = await fetch('/messages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+
+    const successDiv = document.getElementById("form-success");
+    const errorDiv = document.getElementById("form-error");
+
+    successDiv.innerText = "";
+    errorDiv.innerText = "";
+
+    if (!res.ok) {
+        const error = await res.json();
+        errorDiv.innerText = error.error;
+        errorDiv.style.color = "red";
+        return;
+    }
+
+    const result = await res.json();
+
+    successDiv.innerText = `Message ${result.id} created successfully`;
+    successDiv.style.color = "green";
+
+    // Optional: reset form
+    this.reset();
+
+    setTimeout(() => {
+        successDiv.innerText = "";
+    }, 4000);
+});
+
+    const form = document.getElementById("messageForm");
+    const preview = document.getElementById("json-preview");
+
+    function updatePreview() {
+        const formData = new FormData(form);
+
+        const source = formData.get("source_system");
+        const target = formData.get("target_system");
+
+        // Always consistent internal structure
+        const normalized = {
+            patient_id: formData.get("patient_id") || "",
+            patient_name: formData.get("patient_name") || "",
+            diagnosis: formData.get("diagnosis") || "",
+            treatment_plan: formData.get("treatment_plan") || ""
+        };
+
+        // Require source selection first
+        if (!source) {
+            preview.textContent = "Select a source system to generate preview";
+            return;
+        }
+
+        // Build SOURCE (inbound) view
+        let raw = {};
+
+        if (source === "MOSAIQ") {
+            raw = {
+                patientId: normalized.patient_id,
+                patientName: normalized.patient_name,
+                diagnosisCode: normalized.diagnosis,
+                radiationPlanCode: normalized.treatment_plan
+            };
+        } else {
+            raw = {
+                patient_id: normalized.patient_id,
+                patient_name: normalized.patient_name,
+                diagnosis: normalized.diagnosis,
+                treatment_plan: normalized.treatment_plan
+            };
+        }
+
+        // Build TARGET (transformed) view
+        let transformed = {};
+
+        if (target === "MOSAIQ") {
+            transformed = {
+                patientId: normalized.patient_id,
+                patientName: normalized.patient_name,
+                diagnosisCode: normalized.diagnosis
+                    ? normalized.diagnosis.substring(0, 2).toUpperCase()
+                    : "",
+                radiationPlanCode: normalized.treatment_plan
+                    ? normalized.treatment_plan.substring(0, 2).toUpperCase()
+                    : ""
+            };
+        }
+        else if (target === "Epic") {
+            transformed = {
+                patient_id: normalized.patient_id,
+                patient_name: normalized.patient_name,
+                diagnosis: normalized.diagnosis,
+                treatment_plan: normalized.treatment_plan
+            };
+        }
+
+        // Render preview
+        preview.textContent =
+            `[OUTBOUND MESSAGE - ${source}]\n` +
+            JSON.stringify(raw, null, 2) +
+            `\n\n[INBOUND MESSAGE - ${target || "Select Target"}]\n` +
+            JSON.stringify(transformed, null, 2);
+    }
+
+    form.addEventListener("input", updatePreview);
+    form.addEventListener("change", updatePreview);
+    updatePreview();
+</script>
+{% endblock %}
