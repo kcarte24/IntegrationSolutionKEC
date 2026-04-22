@@ -30,7 +30,20 @@ table {
     border-collapse: collapse;
     width: 100%;
     min-width: 1200px;
+    background-color: white;
+    border: 2px solid black;
 }
+
+tbody tr:hover {
+    background-color: #eaf3ff;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+tbody tr: nth-child(even) {
+    background-color: #fafafa;
+}
+
 table th:nth-child(3), table td:nth-child(3) {
     width: 100px;
     max-width: 100px;
@@ -44,15 +57,18 @@ thead th {
 }
 
 th {
-    border: 1px solid #ccc;
+    border: 1px solid #e5e5e5;
     padding: 10px;
-    background-color: #f4f4f4;
+    background-color: #f8f9fa;
     text-align: center;
     position: sticky;
     top: 0;
     z-index: 2;
     cursor: default;
     white-space: nowrap;
+    font-weight: 600;
+    color: #333;
+    box-shadow: 0 2px 2px rgba(0,0,0,0.05);
 }
 
 td {
@@ -60,6 +76,7 @@ td {
     padding: 10px;
     vertical-align: top;
     white-space: normal;
+    border-bottom: 1px solid #eee;
 }
 
 th input {
